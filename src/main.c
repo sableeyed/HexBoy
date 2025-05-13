@@ -8,6 +8,7 @@
 unsigned char* fileData = NULL;
 DWORD fileSize = 0;
 int scrollPos = 0;
+HFONT font = NULL;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -21,6 +22,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     RegisterClass(&wc);
+
+    font = CreateFont(
+        -16, 0, 0, 0,
+        FW_NORMAL,
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET,
+        OUT_OUTLINE_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,
+        FIXED_PITCH | FF_MODERN,
+        "Courier New"
+    );
 
     HWND hwnd = CreateWindowEx(0, CLASS_NAME, "HexBoy", WS_OVERLAPPEDWINDOW | WS_VSCROLL, CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, NULL, NULL, hInstance, NULL);
 
@@ -125,7 +138,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
-            SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
+            //SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
+            SelectObject(hdc, font);
 
             TEXTMETRIC tm;
             GetTextMetrics(hdc, &tm);
@@ -153,7 +167,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 for (int j = 0; j < 16; j++) {
                     if ((DWORD)(offset + j) < fileSize) {
                         unsigned char c = fileData[offset + j];
-                        line[len++] = (c >= 32 && c <= 126) ? c : '.';
+                        //line[len++] = (c >= 32 && c <= 126) ? c : '.';
+                        line[len++] = c >= 32 ? c : '.';
                     } else {
                         line[len++] = ' ';
                     }
