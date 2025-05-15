@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS = -Wall -g -mwindows
+CFLAGS = -Wall -g -mwindows -I$(INC)
 
 SRC = src
 INC = include
@@ -22,4 +22,4 @@ $(BUILD)/%.o: $(SRC)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	del /F /Q $(BUILD)\* & del /F /Q $(BIN)\masochistboy.exe
+	del /F /Q $(BUILD)\* & del /F /Q $(BIN)\hexboy.exe
