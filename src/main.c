@@ -210,6 +210,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             PostQuitMessage(0);
             FreeConsole();
             return 0;
+        case WM_SIZE:
+            InvalidateRect(hwnd, NULL, TRUE);
+            break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
