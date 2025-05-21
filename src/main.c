@@ -21,7 +21,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         freopen_s(&dummy, "CONOUT$", "w", stderr);
     }
 
-    WNDCLASS wc = createWindowClass(hInstance);
+    WNDCLASSEX wc = createWindowClass(hInstance);
 
     HWND hwnd = CreateWindowEx(0, CLASS_NAME, "HexBoy", WS_OVERLAPPEDWINDOW | WS_VSCROLL, CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, NULL, NULL, hInstance, NULL);
     if(!hwnd) { return 1; }
@@ -39,14 +39,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     return 0;
 }
 
-WNDCLASS createWindowClass(HINSTANCE hInstance) {
-    WNDCLASS wc = {0};
+WNDCLASSEX createWindowClass(HINSTANCE hInstance) {
+    WNDCLASSEX wc = {0};
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
+    wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    wc.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    wc.cbSize = sizeof(WNDCLASSEX);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    RegisterClass(&wc);
+    RegisterClassEx(&wc);
     
     font = CreateFont(
         -16, 0, 0, 0,
