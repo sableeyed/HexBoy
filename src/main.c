@@ -142,15 +142,37 @@ void drawWindow(HWND hwnd, int lineHeight) {
     PAINTSTRUCT ps;
     HDC hdc = BeginPaint(hwnd, &ps);
     //SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
-    SelectObject(hdc, font);
+    //SelectObject(hdc, font);
     
     TEXTMETRIC tm;
-    GetTextMetrics(hdc, &tm);
-    lineHeight = tm.tmHeight;
+    //GetTextMetrics(hdc, &tm);
+    //lineHeight = tm.tmHeight;
     
+    // int lineStart = scrollPos;
+    // int linesPerPage = (ps.rcPaint.bottom - ps.rcPaint.top) / lineHeight;
+    // int lineEnd = lineStart + linesPerPage;
+
+    //lol
+
+    RECT client;
+    GetClientRect(hwnd, &client);
+    //FillRect(hdc, &client, (HBRUSH)(COLOR_WINDOW + 1));
+
+    HDC memDC = CreateCompatibleDC(hdc);
+    HBITMAP memBitmap = CreateCompatibleBitmap(hdc, client.right, client.bottom);
+    HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+
+    FillRect(memDC, &client, (HBRUSH)(COLOR_WINDOW + 1));
+    SelectObject(memDC, font);
+
+    GetTextMetrics(memDC, &tm);
+    lineHeight = tm.tmHeight;
+
     int lineStart = scrollPos;
-    int linesPerPage = (ps.rcPaint.bottom - ps.rcPaint.top) / lineHeight;
+    int linesPerPage = client.bottom / lineHeight;
     int lineEnd = lineStart + linesPerPage;
+
+    //end lol
     
     char line[128];
     int x = 10, y = 0;
@@ -177,11 +199,28 @@ void drawWindow(HWND hwnd, int lineHeight) {
             }
         }
         line[len] = '\0';
-        TextOut(hdc, x, y, line, len);
+        TextOut(memDC, x, y, line, len);
         y += lineHeight;
     }
+
+    BitBlt(hdc, 0, 0, client.right, client.bottom, memDC, 0, 0, SRCCOPY);
+    SelectObject(memDC, oldBitmap);
+    DeleteObject(memBitmap);
+    DeleteDC(memDC);
     
     EndPaint(hwnd, &ps);
+}
+
+void updateScrollBar(HWND hwnd, int lineHeight) {
+    RECT client;
+    GetClientRect(hwnd, &client);
+    int totalLines = (fileSize + 15) / 16;
+    int visibleLines = client.bottom / lineHeight;
+    SCROLLINFO si = { sizeof(si), SIF_RANGE | SIF_PAGE };
+    si.nMin = 0;
+    si.nMax = totalLines - 1;
+    si.nPage = visibleLines;
+    SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -204,6 +243,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_VSCROLL: //called when the user scrolls the scroll bar
             scrollWindow(hwnd, wParam);
             return 0;
+        case WM_MOUSEWHEEL:
+            int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+            int lines = delta / WHEEL_DELTA;
+            for(int x = 0; x < abs(lines); x++) {
+                WPARAM wScroll = (lines > 0) ? SB_LINEUP : SB_LINEDOWN;
+                scrollWindow(hwnd, wScroll);
+            }
+            return 0;
         case WM_CREATE:
             return 0;
         case WM_DESTROY:
@@ -212,7 +259,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             return 0;
         case WM_SIZE:
             InvalidateRect(hwnd, NULL, TRUE);
+            drawWindow(hwnd, lineHeight);
+            updateScrollBar(hwnd, lineHeight);
             break;
+        case WM_ERASEBKGND:
+            return 1;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

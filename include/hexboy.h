@@ -10,5 +10,6 @@ void createMenuBar(HWND hwnd);
 void openFile(HWND hwnd);
 void scrollWindow(HWND hwnd, WPARAM wParam);
 void drawWindow(HWND hwnd, int lineHeight);
+void updateScrollBar(HWND hwnd, int lineHeight);
 
 #endif
