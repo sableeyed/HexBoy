@@ -2,6 +2,7 @@
 #include <commdlg.h>
 #include <stdio.h>
 #include "hexboy.h"
+#include "resource.h"
 
 #define ID_OPEN 1
 #define ID_EXIT 2
@@ -15,11 +16,11 @@ unsigned char *fileData = NULL;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // console window for debugging
-    if(AllocConsole()) {
-        FILE *dummy;
-        freopen_s(&dummy, "CONOUT$", "w", stdout);
-        freopen_s(&dummy, "CONOUT$", "w", stderr);
-    }
+    // if(AllocConsole()) {
+    //     FILE *dummy;
+    //     freopen_s(&dummy, "CONOUT$", "w", stdout);
+    //     freopen_s(&dummy, "CONOUT$", "w", stderr);
+    // }
 
     WNDCLASSEX wc = createWindowClass(hInstance);
 
@@ -115,7 +116,10 @@ void openFile(HWND hwnd) {
             si.nPage = 25;
             SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
         }
+        scrollPos = 0;
         InvalidateRect(hwnd, NULL, TRUE);
+        UpdateWindow(hwnd);
+        updateScrollBar(hwnd, 16);
     }
 }
 
@@ -142,87 +146,114 @@ void scrollWindow(HWND hwnd, WPARAM wParam) {
 }
 
 void drawWindow(HWND hwnd, int lineHeight) {
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd, &ps);
-    //SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
-    //SelectObject(hdc, font);
-    
-    TEXTMETRIC tm;
-    //GetTextMetrics(hdc, &tm);
-    //lineHeight = tm.tmHeight;
-    
-    // int lineStart = scrollPos;
-    // int linesPerPage = (ps.rcPaint.bottom - ps.rcPaint.top) / lineHeight;
-    // int lineEnd = lineStart + linesPerPage;
-
-    //lol
-
-    RECT client;
-    GetClientRect(hwnd, &client);
-    //FillRect(hdc, &client, (HBRUSH)(COLOR_WINDOW + 1));
-
-    HDC memDC = CreateCompatibleDC(hdc);
+	const char *header = "Offset(h) 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  Decoded Text";
+	const char *noFile = "No file loaded";
+	PAINTSTRUCT ps;
+	HDC hdc = BeginPaint(hwnd, &ps);
+	TEXTMETRIC tm;
+	RECT client;
+	GetClientRect(hwnd, &client);
+	
+	HDC memDC = CreateCompatibleDC(hdc);
     HBITMAP memBitmap = CreateCompatibleBitmap(hdc, client.right, client.bottom);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
     FillRect(memDC, &client, (HBRUSH)(COLOR_WINDOW + 1));
     SelectObject(memDC, font);
+    SetBkMode(memDC, TRANSPARENT);
 
     GetTextMetrics(memDC, &tm);
     lineHeight = tm.tmHeight;
 
-    int lineStart = scrollPos;
-    int linesPerPage = client.bottom / lineHeight;
-    int lineEnd = lineStart + linesPerPage;
+    int x = 10;
+    int y = 0;
 
-    //end lol
-    
-    char line[128];
-    int x = 10, y = 0;
-    for (int i = lineStart; i < lineEnd; i++) {
-        int offset = i * 16;
-        if ((DWORD)offset >= fileSize) break;
-        
-        int len = sprintf(line, "%08X  ", offset);
-        for (int j = 0; j < 16; j++) {
-            if ((DWORD)(offset + j) < fileSize)
-            len += sprintf(line + len, "%02X ", fileData[offset + j]);
-            else
-            len += sprintf(line + len, "   ");
-        }
-        
-        len += sprintf(line + len, " ");
-        for (int j = 0; j < 16; j++) {
-            if ((DWORD)(offset + j) < fileSize) {
-                unsigned char c = fileData[offset + j];
-                //line[len++] = (c >= 32 && c <= 126) ? c : '.';
-                line[len++] = c >= 32 ? c : '.';
-            } else {
-                line[len++] = ' ';
-            }
-        }
-        line[len] = '\0';
-        TextOut(memDC, x, y, line, len);
-        y += lineHeight;
+    if(fileData != NULL && fileSize > 0) {
+    	SetTextColor(memDC, RGB(0, 0, 255));
+    	TextOut(memDC, x, y, header, strlen(header));
+
+    	int headerHeight = lineHeight + 4;
+        y += headerHeight;
+
+    	int lineStart = scrollPos;
+    	int linesPerPage = (client.bottom - headerHeight) / lineHeight;
+    	int lineEnd = lineStart + linesPerPage;
+
+    	for(int i = lineStart; i < lineEnd; i++) {
+    		int offset = i * 16;
+    		
+    		if((DWORD)offset >= fileSize) { 
+    			break;
+    		}
+
+    		int drawX = x;
+
+    		char offsetStr[12];
+    		sprintf(offsetStr, "%08X", offset);
+    		SetTextColor(memDC, RGB(0, 0, 255));
+    		TextOut(memDC, drawX, y, offsetStr, strlen(offsetStr));
+    		drawX += 10 * tm.tmAveCharWidth;
+
+    		for(int z = 0; z < 16; z++) {
+    			char hexByte[4] = "   ";
+    			if((DWORD)(offset + z) < fileSize) {
+    				sprintf(hexByte, "%02X ", fileData[offset + z]);
+    			}
+    			SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
+    			TextOut(memDC, drawX, y, hexByte, 3);
+    			drawX += 3 * tm.tmAveCharWidth;
+    		}
+
+    		drawX += tm.tmAveCharWidth;
+
+    		SetTextColor(memDC, RGB(0, 0, 0));
+    		for(int z = 0; z < 16; z++) {
+    			char asciiChar = ' ';
+    			if((DWORD)(offset + z) < fileSize) {
+    				unsigned char c = fileData[offset + z];
+    				asciiChar = c >= 32 ? c : '.';
+    			}
+    			TextOut(memDC, drawX, y, &asciiChar, 1);
+    			drawX += tm.tmAveCharWidth;
+    		}
+
+    		y += lineHeight;
+    	}
+    }
+    else {
+    	FillRect(memDC, &client, GetSysColorBrush(COLOR_BTNFACE));
+        SetTextColor(memDC, RGB(80, 80, 80));
+        SIZE msgSize;
+        GetTextExtentPoint32(memDC, noFile, strlen(noFile), &msgSize);
+        int cx = (client.right - msgSize.cx) / 2;
+        int cy = (client.bottom - msgSize.cy) / 2;
+        TextOut(memDC, cx, cy, noFile, strlen(noFile));
     }
 
     BitBlt(hdc, 0, 0, client.right, client.bottom, memDC, 0, 0, SRCCOPY);
     SelectObject(memDC, oldBitmap);
     DeleteObject(memBitmap);
     DeleteDC(memDC);
-    
+
     EndPaint(hwnd, &ps);
 }
 
 void updateScrollBar(HWND hwnd, int lineHeight) {
     RECT client;
     GetClientRect(hwnd, &client);
+
+    int headerHeight = lineHeight + 4;
+
     int totalLines = (fileSize + 15) / 16;
-    int visibleLines = client.bottom / lineHeight;
-    SCROLLINFO si = { sizeof(si), SIF_RANGE | SIF_PAGE };
+    int visibleLines = (client.bottom - headerHeight) / lineHeight;
+    SCROLLINFO si = { sizeof(si), SIF_RANGE | SIF_PAGE | SIF_POS };
     si.nMin = 0;
     si.nMax = totalLines - 1;
     si.nPage = visibleLines;
+    if(scrollPos > (int)(si.nMax - si.nPage + 1)) {
+        scrollPos = max(0, si.nMax - si.nPage + 1);
+    }
+    si.nPos = scrollPos;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
@@ -236,7 +267,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     break;
                 case ID_EXIT:
                     PostQuitMessage(0);
-                    FreeConsole();
+                    //FreeConsole();
                     break;
             }
             return 0;
@@ -258,7 +289,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             return 0;
         case WM_DESTROY:
             PostQuitMessage(0);
-            FreeConsole();
+            //FreeConsole();
             return 0;
         case WM_SIZE:
             InvalidateRect(hwnd, NULL, TRUE);
