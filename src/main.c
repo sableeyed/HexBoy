@@ -237,6 +237,7 @@ void drawWindow(HWND hwnd, int lineHeight) {
                         ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, &asciiChar, 1, NULL);
                     }
                     else {
+                        SetTextColor(memDC, RGB(0, 0, 0));
                         TextOut(memDC, drawX, y, &asciiChar, 1);
                     }
     			}
