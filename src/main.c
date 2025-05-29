@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "hexboy.h"
 #include "resource.h"
+#include <windowsx.h>
 
 #define ID_OPEN 1
 #define ID_EXIT 2
@@ -12,6 +13,7 @@ const char CLASS_NAME[] = "HexBoy";
 DWORD fileSize = 0;
 int scrollPos = 0;
 unsigned char *fileData = NULL;
+int selectedOffset = -1;
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -198,9 +200,20 @@ void drawWindow(HWND hwnd, int lineHeight) {
     			char hexByte[4] = "   ";
     			if((DWORD)(offset + z) < fileSize) {
     				sprintf(hexByte, "%02X ", fileData[offset + z]);
+
+                    if(offset + z == selectedOffset) {
+                        RECT highlight = { drawX, y, drawX + 3 * tm.tmAveCharWidth, y + lineHeight };
+                        SetBkColor(memDC, RGB(173, 216, 230));
+                        ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, hexByte, 3, NULL);
+                    }
+                    else {
+                        SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
+                        TextOut(memDC, drawX, y, hexByte, 3);
+                    }
+
     			}
-    			SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
-    			TextOut(memDC, drawX, y, hexByte, 3);
+    			// SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
+    			// TextOut(memDC, drawX, y, hexByte, 3);
     			drawX += 3 * tm.tmAveCharWidth;
     		}
 
@@ -212,8 +225,17 @@ void drawWindow(HWND hwnd, int lineHeight) {
     			if((DWORD)(offset + z) < fileSize) {
     				unsigned char c = fileData[offset + z];
     				asciiChar = c >= 32 ? c : '.';
+
+                    if((offset + z) == selectedOffset) {
+                        RECT highlight = { drawX, y, drawX + tm.tmAveCharWidth, y + lineHeight };
+                        SetBkColor(memDC, RGB(173, 216, 230));
+                        ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, &asciiChar, 1, NULL);
+                    }
+                    else {
+                        TextOut(memDC, drawX, y, &asciiChar, 1);
+                    }
     			}
-    			TextOut(memDC, drawX, y, &asciiChar, 1);
+    			//TextOut(memDC, drawX, y, &asciiChar, 1);
     			drawX += tm.tmAveCharWidth;
     		}
 
@@ -298,6 +320,45 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             break;
         case WM_ERASEBKGND:
             return 1;
+        case WM_LBUTTONDOWN:
+            int mouseX = GET_X_LPARAM(lParam);
+            int mouseY = GET_Y_LPARAM(lParam);
+        
+            RECT client;
+            GetClientRect(hwnd, &client);
+            HDC hdc = GetDC(hwnd);
+            SelectObject(hdc, font);
+            TEXTMETRIC tm;
+            GetTextMetrics(hdc, &tm);
+            ReleaseDC(hwnd, hdc);
+        
+            int headerHeight = tm.tmHeight + 4;
+            int line = (mouseY - headerHeight) / tm.tmHeight + scrollPos;
+            int x = mouseX - 10; // compensate for left margin
+        
+            if(line < 0 || line * 16 >= fileSize || mouseY < headerHeight) {
+                selectedOffset = -1;
+                break;
+            }
+        
+            int hexStart = 10 * tm.tmAveCharWidth;
+            int hexEnd = hexStart + 16 * 3 * tm.tmAveCharWidth;
+        
+            int asciiStart = hexEnd + tm.tmAveCharWidth;
+        
+            int col = -1;
+            if(x >= hexStart && x < hexEnd) {
+                col = (x - hexStart) / (3 * tm.tmAveCharWidth);
+            } 
+            else if(x >= asciiStart && x < asciiStart + 16 * tm.tmAveCharWidth) {
+                col = (x - asciiStart) / tm.tmAveCharWidth;
+            }
+        
+            if(col >= 0 && col < 16 && (DWORD)(line * 16 + col) < fileSize) {
+                selectedOffset = line * 16 + col;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
