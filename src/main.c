@@ -7,13 +7,16 @@
 
 #define ID_OPEN 1
 #define ID_EXIT 2
+#define IS_SELECTED(offset) (selectionStart >= 0 && selectionEnd >= 0 && (offset) >= min(selectionStart, selectionEnd) && (offset) <= max(selectionStart, selectionEnd))
+
 
 HFONT font = NULL;
 const char CLASS_NAME[] = "HexBoy";
 DWORD fileSize = 0;
 int scrollPos = 0;
 unsigned char *fileData = NULL;
-int selectedOffset = -1;
+int selectionStart = -1;
+int selectionEnd = -1;
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -201,9 +204,10 @@ void drawWindow(HWND hwnd, int lineHeight) {
     			if((DWORD)(offset + z) < fileSize) {
     				sprintf(hexByte, "%02X ", fileData[offset + z]);
 
-                    if(offset + z == selectedOffset) {
+                    if(IS_SELECTED(offset + z)) {
                         RECT highlight = { drawX, y, drawX + 3 * tm.tmAveCharWidth, y + lineHeight };
                         SetBkColor(memDC, RGB(173, 216, 230));
+                        SetTextColor(memDC, RGB(0, 0, 255));
                         ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, hexByte, 3, NULL);
                     }
                     else {
@@ -226,9 +230,10 @@ void drawWindow(HWND hwnd, int lineHeight) {
     				unsigned char c = fileData[offset + z];
     				asciiChar = c >= 32 ? c : '.';
 
-                    if((offset + z) == selectedOffset) {
+                    if(IS_SELECTED(offset + z)) {
                         RECT highlight = { drawX, y, drawX + tm.tmAveCharWidth, y + lineHeight };
                         SetBkColor(memDC, RGB(173, 216, 230));
+                        SetTextColor(memDC, RGB(0, 0, 255));
                         ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, &asciiChar, 1, NULL);
                     }
                     else {
@@ -279,6 +284,39 @@ void updateScrollBar(HWND hwnd, int lineHeight) {
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
+int getByteIndexFromMouse(HWND hwnd, int mouseX, int mouseY) {
+    RECT client;
+    GetClientRect(hwnd, &client);
+    HDC hdc = GetDC(hwnd);
+    SelectObject(hdc, font);
+    TEXTMETRIC tm;
+    GetTextMetrics(hdc, &tm);
+    ReleaseDC(hwnd, hdc);
+
+    int headerHeight = tm.tmHeight + 4;
+    int line = (mouseY - headerHeight) / tm.tmHeight + scrollPos;
+    if(line < 0 || (line * 16) >= (int)fileSize || mouseY < headerHeight) {
+        return -1;
+    }
+    int x = mouseX - 10;
+    int hexStart = 10 * tm.tmAveCharWidth;
+    int hexEnd = hexStart + 16 * 3 * tm.tmAveCharWidth;
+    int asciiStart = hexEnd + tm.tmAveCharWidth;
+
+    int col = -1;
+    if(x >= hexStart && x < hexEnd) {
+        col = (x - hexStart) / (3 * tm.tmAveCharWidth);
+    }
+    else if(x >= asciiStart && x < asciiStart + 16 * tm.tmAveCharWidth) {
+        col = (x - asciiStart) / tm.tmAveCharWidth;
+    }
+
+    if(col >= 0 && col < 16 && ((line * 16 + col) < (int)fileSize)) {
+        return line * 16 + col;
+    }
+    return -1;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static int lineHeight = 16;
     switch (uMsg) {
@@ -321,42 +359,41 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_ERASEBKGND:
             return 1;
         case WM_LBUTTONDOWN:
+            SetCapture(hwnd);
             int mouseX = GET_X_LPARAM(lParam);
             int mouseY = GET_Y_LPARAM(lParam);
-        
-            RECT client;
-            GetClientRect(hwnd, &client);
-            HDC hdc = GetDC(hwnd);
-            SelectObject(hdc, font);
-            TEXTMETRIC tm;
-            GetTextMetrics(hdc, &tm);
-            ReleaseDC(hwnd, hdc);
-        
-            int headerHeight = tm.tmHeight + 4;
-            int line = (mouseY - headerHeight) / tm.tmHeight + scrollPos;
-            int x = mouseX - 10; // compensate for left margin
-        
-            if(line < 0 || line * 16 >= fileSize || mouseY < headerHeight) {
-                selectedOffset = -1;
-                break;
-            }
-        
-            int hexStart = 10 * tm.tmAveCharWidth;
-            int hexEnd = hexStart + 16 * 3 * tm.tmAveCharWidth;
-        
-            int asciiStart = hexEnd + tm.tmAveCharWidth;
-        
-            int col = -1;
-            if(x >= hexStart && x < hexEnd) {
-                col = (x - hexStart) / (3 * tm.tmAveCharWidth);
-            } 
-            else if(x >= asciiStart && x < asciiStart + 16 * tm.tmAveCharWidth) {
-                col = (x - asciiStart) / tm.tmAveCharWidth;
-            }
-        
-            if(col >= 0 && col < 16 && (DWORD)(line * 16 + col) < fileSize) {
-                selectedOffset = line * 16 + col;
+
+            int byteIndex = getByteIndexFromMouse(hwnd, mouseX, mouseY);
+            if(byteIndex >= 0 && byteIndex < (int)fileSize) {
+                selectionStart = byteIndex;
+                selectionEnd = byteIndex;
                 InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else {
+                selectionStart = selectionEnd = -1;
+            }
+            break;
+        case WM_MOUSEMOVE:
+            if(wParam & MK_LBUTTON && selectionStart >= 0) {
+                int mouseX = GET_X_LPARAM(lParam);
+                int mouseY = GET_Y_LPARAM(lParam);
+
+                int byteIndex = getByteIndexFromMouse(hwnd, mouseX, mouseY);
+                if(byteIndex >= 0 && byteIndex < (int)fileSize && byteIndex != selectionEnd) {
+                    selectionEnd = byteIndex;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                }
+            }
+            break;
+        case WM_LBUTTONUP:
+            ReleaseCapture();  
+            break;
+        case WM_KEYDOWN:
+            if(wParam == VK_ESCAPE) {
+                if(selectionStart != -1 || selectionEnd != -1) {
+                    selectionStart = selectionEnd = -1;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                }
             }
             break;
     }
