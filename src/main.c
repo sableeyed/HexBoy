@@ -6,7 +6,10 @@
 #include <windowsx.h>
 
 #define ID_OPEN 1
-#define ID_EXIT 2
+#define ID_CLOSE 2
+#define ID_SAVE 3
+#define ID_SAVEAS 4
+#define ID_EXIT 5
 #define IS_SELECTED(offset) (selectionStart >= 0 && selectionEnd >= 0 && (offset) >= min(selectionStart, selectionEnd) && (offset) <= max(selectionStart, selectionEnd))
 
 
@@ -78,6 +81,9 @@ void createMenuBar(HWND hwnd) {
     HMENU editMenu = CreateMenu();
     HMENU helpMenu = CreateMenu();
     AppendMenu(fileMenu, MF_STRING, ID_OPEN, "Open");
+    AppendMenu(fileMenu, MF_STRING, ID_CLOSE, "Close");
+    AppendMenu(fileMenu, MF_STRING, ID_SAVE, "Save");
+    AppendMenu(fileMenu, MF_STRING, ID_SAVEAS, "Save As");
     AppendMenu(fileMenu, MF_STRING, ID_EXIT, "Exit");
     AppendMenu(menuBar, MF_POPUP, (UINT_PTR)fileMenu, "File");
     AppendMenu(menuBar, MF_POPUP, (UINT_PTR)editMenu, "Edit");
@@ -126,6 +132,15 @@ void openFile(HWND hwnd) {
         UpdateWindow(hwnd);
         updateScrollBar(hwnd, 16);
     }
+}
+
+void closeFile(HWND hwnd) {
+    GlobalFree(fileData);
+    fileData = NULL;
+    fileSize = 0;
+    scrollPos = 0;
+    InvalidateRect(hwnd, NULL, TRUE);
+    UpdateWindow(hwnd);
 }
 
 void scrollWindow(HWND hwnd, WPARAM wParam) {
@@ -325,6 +340,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             switch (LOWORD(wParam)) {
                 case ID_OPEN:
                     openFile(hwnd);
+                    break;
+                case ID_CLOSE:
+                    closeFile(hwnd);
                     break;
                 case ID_EXIT:
                     PostQuitMessage(0);
