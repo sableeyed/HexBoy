@@ -220,16 +220,24 @@ void drawWindow(HWND hwnd, int lineHeight) {
     				sprintf(hexByte, "%02X ", fileData[offset + z]);
 
                     if(IS_SELECTED(offset + z)) {
-                        RECT highlight = { drawX, y, drawX + 3 * tm.tmAveCharWidth, y + lineHeight };
+                        BOOL nextSelected = ((offset + z + 1) < fileSize) && IS_SELECTED(offset + z + 1);
+                        int highlightWidth = nextSelected ? 3 * tm.tmAveCharWidth : 2 * tm.tmAveCharWidth;
+    
+                        RECT highlight = { drawX, y, drawX + highlightWidth, y + lineHeight };
                         SetBkColor(memDC, RGB(173, 216, 230));
                         SetTextColor(memDC, RGB(0, 0, 255));
-                        ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, hexByte, 3, NULL);
+                        ExtTextOut(memDC, drawX, y, ETO_OPAQUE, &highlight, hexByte, 2, NULL);
+    
+                        if (!nextSelected) {
+                            SetBkMode(memDC, TRANSPARENT);
+                            SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
+                            TextOut(memDC, drawX + 2 * tm.tmAveCharWidth, y, " ", 1);
+                        }
                     }
                     else {
                         SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
                         TextOut(memDC, drawX, y, hexByte, 3);
                     }
-
     			}
     			// SetTextColor(memDC, (z % 2 == 0) ? RGB(0, 0, 0) : RGB(100, 100, 100));
     			// TextOut(memDC, drawX, y, hexByte, 3);
