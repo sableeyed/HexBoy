@@ -251,7 +251,11 @@ void drawWindow(HWND hwnd, int lineHeight) {
     			char asciiChar = ' ';
     			if((DWORD)(offset + z) < fileSize) {
     				unsigned char c = fileData[offset + z];
-    				asciiChar = c >= 32 ? c : '.';
+    				asciiChar = c >= 32 && c <= 254 ? c : '.';
+
+                    if(c == 144) {
+                        asciiChar = '.';
+                    }
 
                     if(IS_SELECTED(offset + z)) {
                         RECT highlight = { drawX, y, drawX + tm.tmAveCharWidth, y + lineHeight };
